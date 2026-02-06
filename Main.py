@@ -1,7 +1,8 @@
 import asyncio
 import random
 from aiogram import Bot, Dispatcher, types, Router
-from aiogram.filters import Command, Text
+from aiogram.filters import Command
+from aiogram.filters.text import Text
 from aiogram.types import ReplyKeyboardMarkup
 
 # Токен бота (замени на свой)
