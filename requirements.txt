@@ -1,4 +1,4 @@
-aiogram==3.0.0b7
-pydantic-core==2.41.5
-typing-extensions==4.15.0
-aiohttp==3.8.5
+aiogram
+pydantic-core
+typing-extensions
+aiohttp
