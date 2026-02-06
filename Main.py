@@ -1,13 +1,15 @@
 import asyncio
 import random
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram import Bot, Dispatcher, types, Router
+from aiogram.filters import Command, Text
+from aiogram.types import ReplyKeyboardMarkup
 
 # Токен бота (замени на свой)
 TOKEN = "8564961413:AAFNCBFsA-iIoUx-V1E54zX6MUzoKgmeenA"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+router = Router()
 
 user_scores = {}
 user_state = {}
@@ -180,7 +182,7 @@ def taxes_keyboard(country, sector):
     return kb
 
 # Хэндлеры
-@dp.message(commands=["start"])
+@router.message(Command("start"))
 async def start(message: types.Message):
     uid = message.from_user.id
     user_scores[uid] = 0
@@ -192,22 +194,22 @@ async def start(message: types.Message):
         reply_markup=countries_keyboard()
     )
 
-@dp.message(lambda m: m.text == "📊 Мои баллы")
+@router.message(Text("📊 Мои баллы"))
 async def my_score(message: types.Message):
     uid = message.from_user.id
     await message.answer(f"📊 Ваши баллы: {user_scores.get(uid, 0)}", reply_markup=countries_keyboard())
 
-@dp.message(lambda m: m.text in tax_data.keys())
+@router.message(Text(list(tax_data.keys())))
 async def choose_sector(message: types.Message):
     uid = message.from_user.id
     user_state[uid] = {"country": message.text}
     await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-@dp.message(lambda m: m.text == "⬅️ Назад к странам")
+@router.message(Text("⬅️ Назад к странам"))
 async def back_to_countries(message: types.Message):
     await message.answer("Выберите страну:", reply_markup=countries_keyboard())
 
-@dp.message(lambda m: m.text in ["Туризм", "Экология", "Медицина", "Социальная сфера"])
+@router.message(Text(["Туризм", "Экология", "Медицина", "Социальная сфера"]))
 async def choose_tax(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
@@ -218,7 +220,7 @@ async def choose_tax(message: types.Message):
     sector = user_state[uid]["sector"]
     await message.answer("Выберите налог:", reply_markup=taxes_keyboard(country, sector))
 
-@dp.message(lambda m: m.text == "⬅️ Назад к сферам")
+@router.message(Text("⬅️ Назад к сферам"))
 async def back_to_sectors(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
@@ -226,7 +228,7 @@ async def back_to_sectors(message: types.Message):
         return
     await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-@dp.message(lambda m: True)
+@router.message()
 async def handle_tax(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid] or "sector" not in user_state[uid]:
@@ -254,6 +256,9 @@ async def handle_tax(message: types.Message):
         text += "\n\n🎁 Бонусы открыты:\n" + "\n".join(bonus_codes)
 
     await message.answer(text, reply_markup=countries_keyboard())
+
+# Подключаем роутер
+dp.include_router(router)
 
 # Запуск бота
 async def main():
