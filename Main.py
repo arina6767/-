@@ -1,11 +1,13 @@
-from aiogram import Bot, Dispatcher, executor, types
+import asyncio
 import random
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 # Токен бота (замени на свой)
-TOKEN = "8564961413:AAFNCBFsA-iloUx"
+TOKEN = "8564961413:AAFNCBFsA-iIoUx-V1E54zX6MUzoKgmeenA"
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 user_scores = {}
 user_state = {}
@@ -38,7 +40,6 @@ tax_data = {
             "Налог на коммерческое использование символов": 8
         }
     },
-
     "Япония": {
         "Туризм": {
             "Налог на фото в метро": 0,
@@ -65,7 +66,6 @@ tax_data = {
             "Налог за нарушение баланса труда и отдыха": 8
         }
     },
-
     "США": {
         "Туризм": {
             "Налог на селфи в парке": 0,
@@ -92,7 +92,6 @@ tax_data = {
             "Налог на спекуляцию недвижимостью": 8
         }
     },
-
     "Франция": {
         "Туризм": {
             "Налог на фотографирование улиц": 0,
@@ -119,7 +118,6 @@ tax_data = {
             "Налог на пустующее жильё": 8
         }
     },
-
     "Китай": {
         "Туризм": {
             "Налог на фото туристов": 0,
@@ -159,21 +157,21 @@ bonus_codes = [
 
 # Клавиатуры
 def countries_keyboard():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Италия", "Япония")
     kb.add("США", "Франция", "Китай")
     kb.add("📊 Мои баллы")
     return kb
 
 def sectors_keyboard():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Туризм", "Экология")
     kb.add("Медицина", "Социальная сфера")
     kb.add("⬅️ Назад к странам")
     return kb
 
 def taxes_keyboard(country, sector):
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     taxes = list(tax_data[country][sector].keys())
     random.shuffle(taxes)
     kb.add(taxes[0], taxes[1])
@@ -182,7 +180,7 @@ def taxes_keyboard(country, sector):
     return kb
 
 # Хэндлеры
-@dp.message_handler(commands=["start"])
+@dp.message(commands=["start"])
 async def start(message: types.Message):
     uid = message.from_user.id
     user_scores[uid] = 0
@@ -194,22 +192,22 @@ async def start(message: types.Message):
         reply_markup=countries_keyboard()
     )
 
-@dp.message_handler(lambda m: m.text == "📊 Мои баллы")
+@dp.message(lambda m: m.text == "📊 Мои баллы")
 async def my_score(message: types.Message):
     uid = message.from_user.id
     await message.answer(f"📊 Ваши баллы: {user_scores.get(uid, 0)}", reply_markup=countries_keyboard())
 
-@dp.message_handler(lambda m: m.text in tax_data.keys())
+@dp.message(lambda m: m.text in tax_data.keys())
 async def choose_sector(message: types.Message):
     uid = message.from_user.id
     user_state[uid] = {"country": message.text}
     await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-@dp.message_handler(lambda m: m.text == "⬅️ Назад к странам")
+@dp.message(lambda m: m.text == "⬅️ Назад к странам")
 async def back_to_countries(message: types.Message):
     await message.answer("Выберите страну:", reply_markup=countries_keyboard())
 
-@dp.message_handler(lambda m: m.text in ["Туризм", "Экология", "Медицина", "Социальная сфера"])
+@dp.message(lambda m: m.text in ["Туризм", "Экология", "Медицина", "Социальная сфера"])
 async def choose_tax(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
@@ -220,7 +218,7 @@ async def choose_tax(message: types.Message):
     sector = user_state[uid]["sector"]
     await message.answer("Выберите налог:", reply_markup=taxes_keyboard(country, sector))
 
-@dp.message_handler(lambda m: m.text == "⬅️ Назад к сферам")
+@dp.message(lambda m: m.text == "⬅️ Назад к сферам")
 async def back_to_sectors(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
@@ -228,7 +226,7 @@ async def back_to_sectors(message: types.Message):
         return
     await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-@dp.message_handler(lambda m: True)
+@dp.message(lambda m: True)
 async def handle_tax(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid] or "sector" not in user_state[uid]:
@@ -257,5 +255,9 @@ async def handle_tax(message: types.Message):
 
     await message.answer(text, reply_markup=countries_keyboard())
 
+# Запуск бота
+async def main():
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    asyncio.run(main())
