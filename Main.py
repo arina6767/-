@@ -1,20 +1,16 @@
+from aiogram import Bot, Dispatcher, executor, types
 import random
-import asyncio
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command
 
-# =========================
-#  ТОКЕН
-# =========================
-
+# Токен бота (замени на свой)
 TOKEN = "8564961413:AAFNCBFsA-iloUx"
 
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
 
-# =========================
-#  ДАННЫЕ ИГРЫ
-# =========================
+user_scores = {}
+user_state = {}
 
+# Данные по странам, сферам и налогам
 tax_data = {
     "Италия": {
         "Туризм": {
@@ -152,6 +148,7 @@ tax_data = {
     }
 }
 
+# Бонусные коды
 bonus_codes = [
     "LIT2S9KGJH9",
     "LIT2Sbmkjh",
@@ -160,233 +157,105 @@ bonus_codes = [
     "PROKACHAYSYA"
 ]
 
-BONUS_THRESHOLD = 50  # сколько нужно баллов для бонусов
-
-
-# =========================
-#  ПАМЯТЬ ИГРОКОВ
-# =========================
-
-user_scores = {}        # uid -> int
-user_state = {}         # uid -> {"country": "...", "sector": "..."}
-user_used_taxes = {}    # uid -> set( (country, sector, tax_name) )
-
-
-# =========================
-#  КЛАВИАТУРЫ
-# =========================
-
+# Клавиатуры
 def countries_keyboard():
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Италия"), KeyboardButton(text="Япония")],
-            [KeyboardButton(text="США"), KeyboardButton(text="Франция"), KeyboardButton(text="Китай")],
-            [KeyboardButton(text="📊 Мои баллы")]
-        ],
-        resize_keyboard=True
-    )
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Италия", "Япония")
+    kb.add("США", "Франция", "Китай")
+    kb.add("📊 Мои баллы")
     return kb
-
 
 def sectors_keyboard():
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Туризм"), KeyboardButton(text="Экология")],
-            [KeyboardButton(text="Медицина"), KeyboardButton(text="Социальная сфера")],
-            [KeyboardButton(text="⬅️ Назад к странам")]
-        ],
-        resize_keyboard=True
-    )
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Туризм", "Экология")
+    kb.add("Медицина", "Социальная сфера")
+    kb.add("⬅️ Назад к странам")
     return kb
-
 
 def taxes_keyboard(country, sector):
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     taxes = list(tax_data[country][sector].keys())
     random.shuffle(taxes)
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=taxes[0]), KeyboardButton(text=taxes[1])],
-            [KeyboardButton(text=taxes[2]), KeyboardButton(text=taxes[3])],
-            [KeyboardButton(text="⬅️ Назад к сферам")]
-        ],
-        resize_keyboard=True
-    )
+    kb.add(taxes[0], taxes[1])
+    kb.add(taxes[2], taxes[3])
+    kb.add("⬅️ Назад к сферам")
     return kb
 
-
-# =========================
-#  УТИЛИТА: СКОЛЬКО ДО БОНУСОВ
-# =========================
-
-def bonus_progress_text(total_score: int) -> str:
-    if total_score >= BONUS_THRESHOLD:
-        return "🎁 Бонусы уже открыты!"
-    left = BONUS_THRESHOLD - total_score
-    return f"⏳ До бонусов осталось: {left} баллов"
-
-
-# =========================
-#  БОТ
-# =========================
-
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
-
-
-@dp.message(Command("start"))
-async def start(message: Message):
+# Хэндлеры
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
     uid = message.from_user.id
-
     user_scores[uid] = 0
     user_state[uid] = {}
-    user_used_taxes[uid] = set()
-
     await message.answer(
-        "🌍 Игра «Необычные налоги мира»!\n\n"
-        "👉 Выбирай: страна → сфера → налог.\n\n"
-        f"{bonus_progress_text(0)}",
+        "🌍 Игра «Необычные налоги мира»!\n"
+        "Выбирай страну → сферу → налог.\n"
+        "🎁 50 баллов = бонусы!",
         reply_markup=countries_keyboard()
     )
 
-
-@dp.message(F.text == "📊 Мои баллы")
-async def my_score(message: Message):
+@dp.message_handler(lambda m: m.text == "📊 Мои баллы")
+async def my_score(message: types.Message):
     uid = message.from_user.id
-    score = user_scores.get(uid, 0)
+    await message.answer(f"📊 Ваши баллы: {user_scores.get(uid, 0)}", reply_markup=countries_keyboard())
 
-    await message.answer(
-        f"📊 Ваши баллы: {score}\n{bonus_progress_text(score)}",
-        reply_markup=countries_keyboard()
-    )
-
-
-@dp.message(F.text.in_(tax_data.keys()))
-async def choose_sector(message: Message):
+@dp.message_handler(lambda m: m.text in tax_data.keys())
+async def choose_sector(message: types.Message):
     uid = message.from_user.id
+    user_state[uid] = {"country": message.text}
+    await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-    user_state.setdefault(uid, {})
-    user_state[uid]["country"] = message.text
-    user_state[uid].pop("sector", None)
+@dp.message_handler(lambda m: m.text == "⬅️ Назад к странам")
+async def back_to_countries(message: types.Message):
+    await message.answer("Выберите страну:", reply_markup=countries_keyboard())
 
-    await message.answer(
-        f"✅ Страна выбрана: {message.text}\n\nТеперь выберите сферу:",
-        reply_markup=sectors_keyboard()
-    )
-
-
-@dp.message(F.text == "⬅️ Назад к странам")
-async def back_to_countries(message: Message):
+@dp.message_handler(lambda m: m.text in ["Туризм", "Экология", "Медицина", "Социальная сфера"])
+async def choose_tax(message: types.Message):
     uid = message.from_user.id
-    user_state.setdefault(uid, {})
-    user_state[uid] = {}
-
-    await message.answer(
-        "Выберите страну:",
-        reply_markup=countries_keyboard()
-    )
-
-
-@dp.message(F.text.in_(["Туризм", "Экология", "Медицина", "Социальная сфера"]))
-async def choose_tax(message: Message):
-    uid = message.from_user.id
-
     if uid not in user_state or "country" not in user_state[uid]:
         await message.answer("Сначала выберите страну.", reply_markup=countries_keyboard())
         return
-
     user_state[uid]["sector"] = message.text
-
     country = user_state[uid]["country"]
     sector = user_state[uid]["sector"]
+    await message.answer("Выберите налог:", reply_markup=taxes_keyboard(country, sector))
 
-    await message.answer(
-        f"✅ Сфера выбрана: {sector}\n\nТеперь выберите налог:",
-        reply_markup=taxes_keyboard(country, sector)
-    )
-
-
-@dp.message(F.text == "⬅️ Назад к сферам")
-async def back_to_sectors(message: Message):
+@dp.message_handler(lambda m: m.text == "⬅️ Назад к сферам")
+async def back_to_sectors(message: types.Message):
     uid = message.from_user.id
-
     if uid not in user_state or "country" not in user_state[uid]:
-        await message.answer("Сначала выберите страну.", reply_markup=countries_keyboard())
+        await message.answer("Выберите страну:", reply_markup=countries_keyboard())
         return
+    await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-    user_state[uid].pop("sector", None)
-
-    await message.answer(
-        "Выберите сферу:",
-        reply_markup=sectors_keyboard()
-    )
-
-
-@dp.message()
-async def handle_tax(message: Message):
+@dp.message_handler(lambda m: True)
+async def handle_tax(message: types.Message):
     uid = message.from_user.id
-
     if uid not in user_state or "country" not in user_state[uid] or "sector" not in user_state[uid]:
         await message.answer("Сначала выберите страну и сферу.", reply_markup=countries_keyboard())
         return
-
     country = user_state[uid]["country"]
     sector = user_state[uid]["sector"]
 
     if message.text not in tax_data[country][sector]:
-        await message.answer(
-            "Выберите налог с кнопок 🙂",
-            reply_markup=taxes_keyboard(country, sector)
-        )
+        await message.answer("Выберите налог с кнопок.", reply_markup=taxes_keyboard(country, sector))
         return
 
-    tax_name = message.text
-    points = tax_data[country][sector][tax_name]
-
-    # =========================
-    # АНТИФАРМ
-    # =========================
-    key = (country, sector, tax_name)
-    user_used_taxes.setdefault(uid, set())
-
-    if key in user_used_taxes[uid]:
-        await message.answer(
-            "⛔ Этот налог уже был выбран раньше.\n"
-            "Баллы за него повторно не начисляются 🙂\n\n"
-            "Выберите другой налог:",
-            reply_markup=taxes_keyboard(country, sector)
-        )
-        return
-
-    user_used_taxes[uid].add(key)
-
-    # начисляем баллы
-    user_scores.setdefault(uid, 0)
+    points = tax_data[country][sector][message.text]
     user_scores[uid] += points
-    total = user_scores[uid]
+    remaining = max(0, 50 - user_scores[uid])
 
     text = (
-        f"✅ Вы выбрали:\n"
-        f"🌍 {country} → {sector}\n"
-        f"🧾 {tax_name}\n\n"
-        f"🎯 Баллы за налог: {points}\n"
-        f"📊 Всего баллов: {total}\n"
-        f"{bonus_progress_text(total)}"
+        f"✅ Вы выбрали:\n{message.text}\n\n"
+        f"🎯 Баллы за этот налог: {points}\n"
+        f"📊 Всего баллов: {user_scores[uid]}\n"
+        f"⏳ Осталось до бонуса: {remaining}"
     )
 
-    if total >= BONUS_THRESHOLD:
-        text += "\n\n🎁 Бонус-коды:\n" + "\n".join(bonus_codes)
+    if user_scores[uid] >= 50:
+        text += "\n\n🎁 Бонусы открыты:\n" + "\n".join(bonus_codes)
 
     await message.answer(text, reply_markup=countries_keyboard())
 
-
-# =========================
-#  ЗАПУСК
-# =========================
-
-async def main():
-    await dp.start_polling(bot)
-
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    executor.start_polling(dp)
