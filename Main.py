@@ -1,7 +1,7 @@
 import asyncio
 import random
 from aiogram import Bot, Dispatcher, types, Router
-from aiogram.filters import Command, Text
+from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup
 
 # Токен бота (замени на свой)
@@ -140,22 +140,22 @@ async def start(message: types.Message):
         reply_markup=countries_keyboard()
     )
 
-@router.message(Text("📊 Мои баллы"))
+@router.message(lambda m: m.text == "📊 Мои баллы")
 async def my_score(message: types.Message):
     uid = message.from_user.id
     await message.answer(f"📊 Ваши баллы: {user_scores.get(uid, 0)}", reply_markup=countries_keyboard())
 
-@router.message(Text(list(tax_data.keys())))
+@router.message(lambda m: m.text in tax_data.keys())
 async def choose_sector(message: types.Message):
     uid = message.from_user.id
     user_state[uid] = {"country": message.text}
     await message.answer("Выберите сферу:", reply_markup=sectors_keyboard())
 
-@router.message(Text("⬅️ Назад к странам"))
+@router.message(lambda m: m.text == "⬅️ Назад к странам")
 async def back_to_countries(message: types.Message):
     await message.answer("Выберите страну:", reply_markup=countries_keyboard())
 
-@router.message(Text(["Туризм", "Экология", "Медицина", "Социальная сфера"]))
+@router.message(lambda m: m.text in ["Туризм", "Экология", "Медицина", "Социальная сфера"])
 async def choose_tax(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
@@ -166,7 +166,7 @@ async def choose_tax(message: types.Message):
     sector = user_state[uid]["sector"]
     await message.answer("Выберите налог:", reply_markup=taxes_keyboard(country, sector))
 
-@router.message(Text("⬅️ Назад к сферам"))
+@router.message(lambda m: m.text == "⬅️ Назад к сферам")
 async def back_to_sectors(message: types.Message):
     uid = message.from_user.id
     if uid not in user_state or "country" not in user_state[uid]:
