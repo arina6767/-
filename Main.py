@@ -10,7 +10,11 @@ TOKEN = "8564961413:AAFNCBFsA-iIoUx-V1E54zX6MUzoKgmeenA"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
+# Очистка всех висящих обновлений Telegram
+async def clear_updates():
+    await bot.delete_webhook(drop_pending_updates=True)
 
+asyncio.run(clear_updates())
 user_scores = {}
 user_state = {}
 
